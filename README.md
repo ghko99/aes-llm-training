@@ -36,22 +36,26 @@ Kanana LLM 기반 자동 에세이 채점(AES) 모델 LoRA 파인튜닝 코드.
 ## 환경 설정
 
 ```bash
-# 1. conda 환경 생성
+# 1. 레포 클론
+git clone https://github.com/ghko99/aes-llm-training.git
+cd aes-llm-training
+
+# 2. conda 환경 생성
 conda create -n llm python=3.10 -y
 conda activate llm
 
-# 2. PyTorch 설치 (CUDA 버전에 맞게 선택)
+# 3. PyTorch 설치 (CUDA 버전에 맞게 선택)
 # CUDA 12.8 예시:
 pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cu128
 # 다른 CUDA 버전은 https://pytorch.org/get-started/locally/ 참고
 
-# 3. 나머지 패키지 설치
+# 4. 나머지 패키지 설치
 pip install -r requirements.txt
 
-# 4. 데이터셋 다운로드 (Git LFS)
+# 5. 데이터셋 다운로드 (Git LFS)
 git lfs pull
 
-# 5. train.py의 MODEL_PATH를 실제 모델 경로로 수정
+# 6. train.py의 MODEL_PATH를 실제 모델 경로로 수정
 # MODEL_PATH = "/path/to/kanana"  (train.py:41)
 ```
 
