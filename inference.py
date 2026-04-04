@@ -14,9 +14,9 @@ from peft import PeftModel
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
-from .number_tokenizer import AutoNumberTokenizer
+from number_tokenizer import AutoNumberTokenizer
 
-MODEL_PATH = "/home/khko/models/kanana"
+MODEL_PATH = "kanana-model-path"
 
 
 def build_digit_token_id_map(tokenizer) -> dict[int, int]:
