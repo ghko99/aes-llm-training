@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from .number_tokenizer import NumberEncodingTokenizer
+from number_tokenizer import NumberEncodingTokenizer
 
 
 class NumberTokenSelector:
