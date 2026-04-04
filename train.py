@@ -167,20 +167,23 @@ def train(
         if split_path.exists():
             test_datasets[split_name] = load_dataset("json", data_files=str(split_path))["train"]
 
-    print(f"Dataset: train={len(train_ds)}, valid={len(valid_ds)}")
-    for name, ds in test_datasets.items():
-        print(f"  {name}={len(ds)}")
+    is_main = int(os.environ.get("LOCAL_RANK", 0)) == 0
+    if is_main:
+        print(f"Dataset: train={len(train_ds)}, valid={len(valid_ds)}")
+        for name, ds in test_datasets.items():
+            print(f"  {name}={len(ds)}")
 
     # Class weights
     score_weights = None
     if use_weighted_ntl:
         counts = _count_scores_by_pos(train_ds)
         score_weights = _build_class_weights(counts)
-        weights_path = os.path.join(output_dir, "score_pos_class_weights.json")
-        serializable = [{str(k): float(v) for k, v in w.items()} for w in score_weights]
-        with open(weights_path, "w", encoding="utf-8") as f:
-            json.dump(serializable, f, ensure_ascii=False, indent=2)
-        print(f"Class weights saved: {weights_path}")
+        if is_main:
+            weights_path = os.path.join(output_dir, "score_pos_class_weights.json")
+            serializable = [{str(k): float(v) for k, v in w.items()} for w in score_weights]
+            with open(weights_path, "w", encoding="utf-8") as f:
+                json.dump(serializable, f, ensure_ascii=False, indent=2)
+            print(f"Class weights saved: {weights_path}")
 
     # Model + LoRA
     if use_unsloth:
@@ -271,9 +274,13 @@ def train(
     train_ds = train_ds.map(_estimate_length, num_proc=4)
     valid_ds = valid_ds.map(_estimate_length, num_proc=4)
 
-    # W&B init
+    # W&B init (rank 0 only; other ranks disabled)
     import wandb
-    wandb.init(project="aes-training", name=f"{tag}_{timestamp}")
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    if local_rank == 0:
+        wandb.init(project="aes-training", name=f"{tag}_{timestamp}")
+    else:
+        wandb.init(mode="disabled")
 
     # Training arguments
     training_args = TrainingArguments(
