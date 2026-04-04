@@ -10,7 +10,9 @@ echo "Detected ${NUM_GPUS} GPUs"
 accelerate launch \
     --multi_gpu \
     --num_processes "$NUM_GPUS" \
+    --num_machines 1 \
     --mixed_precision bf16 \
+    --dynamo_backend no \
     train.py \
     --model_path "$MODEL_PATH" \
     --no_unsloth \

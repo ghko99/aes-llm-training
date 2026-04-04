@@ -209,6 +209,7 @@ def train(
         )
     else:
         use_bf16 = torch.cuda.is_bf16_supported()
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
         quant_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -218,9 +219,10 @@ def train(
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
             quantization_config=quant_config,
-            torch_dtype=torch.bfloat16 if use_bf16 else torch.float16,
+            dtype=torch.bfloat16 if use_bf16 else torch.float16,
             trust_remote_code=True,
             attn_implementation="sdpa",
+            device_map={"": local_rank},
         )
         model = prepare_model_for_kbit_training(model)
 
