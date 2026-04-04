@@ -243,7 +243,9 @@ def train(
             task_type="CAUSAL_LM",
         )
         model = get_peft_model(model, lora_config)
-        model.gradient_checkpointing_enable()
+        model.gradient_checkpointing_enable(
+            gradient_checkpointing_kwargs={"use_reentrant": False}
+        )
 
     model.print_trainable_parameters()
 
@@ -296,6 +298,7 @@ def train(
         length_column_name="length",
         report_to="wandb",
         run_name=f"{tag}_{timestamp}",
+        ddp_find_unused_parameters=False if not use_unsloth else None,
     )
 
     trainer = AESTrainer(
