@@ -29,11 +29,11 @@ from datasets import load_dataset
 from transformers import EarlyStoppingCallback, TrainingArguments
 from unsloth import FastLanguageModel
 
-from .collator import AESCollator
-from .inference import run_inference
-from .evaluate import evaluate_results
-from .number_tokenizer import AutoNumberTokenizer
-from .trainer import AESTrainer
+from collator import AESCollator
+from inference import run_inference
+from evaluate import evaluate_results
+from number_tokenizer import AutoNumberTokenizer
+from trainer import AESTrainer
 
 
 # ── Config ────────────────────────────────────────────────────────────
