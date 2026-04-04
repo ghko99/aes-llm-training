@@ -3,13 +3,20 @@ from __future__ import annotations
 import os
 os.environ["UNSLOTH_RETURN_LOGITS"] = "1"
 
-"""Main training script for Kanana AES fine-tuning with Unsloth.
+"""Main training script for Kanana AES fine-tuning.
+
+Supports two backends:
+  - Unsloth (default): single-GPU, ~2x speedup
+  - Standard HF + peft (--no_unsloth): multi-GPU via accelerate
 
 Usage:
-    python -m aes_training.train [options]
+    # Single GPU with Unsloth
+    python train.py [options]
 
-Key differences from wce_full_dataset_aes:
-  - Kanana model via Unsloth for ~2x speedup
+    # Multi-GPU without Unsloth
+    accelerate launch train.py --no_unsloth [options]
+
+Key features:
   - Expanded LoRA targets (all linear projections)
   - Compact chat-template dataset (shorter instruction)
   - Configurable loss: CE + optional NTL (WNTL) + optional SAL
@@ -26,8 +33,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from datasets import load_dataset
-from transformers import EarlyStoppingCallback, TrainingArguments
-from unsloth import FastLanguageModel
+from transformers import AutoModelForCausalLM, BitsAndBytesConfig, EarlyStoppingCallback, TrainingArguments
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 from collator import AESCollator
 from inference import run_inference
@@ -116,6 +123,7 @@ def train(
     use_sal: bool = False,
     use_weighted_ntl: bool = True,
     resume_checkpoint: str | None = None,
+    use_unsloth: bool = True,
 ):
     set_seed(42)
 
@@ -171,28 +179,67 @@ def train(
             json.dump(serializable, f, ensure_ascii=False, indent=2)
         print(f"Class weights saved: {weights_path}")
 
-    # Model + LoRA via Unsloth
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=MODEL_PATH,
-        max_seq_length=max_seq_length,
-        load_in_4bit=True,
-        dtype=None,  # auto-detect (bf16 on 4090)
-        attn_implementation="sdpa",
-    )
+    # Model + LoRA
+    if use_unsloth:
+        from unsloth import FastLanguageModel
 
-    model = FastLanguageModel.get_peft_model(
-        model,
-        r=lora_r,
-        lora_alpha=lora_alpha,
-        target_modules=[
-            "q_proj", "k_proj", "v_proj", "o_proj",
-            "gate_proj", "up_proj", "down_proj",
-        ],
-        lora_dropout=0.05,
-        bias="none",
-        use_gradient_checkpointing="unsloth",
-        random_state=42,
-    )
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=MODEL_PATH,
+            max_seq_length=max_seq_length,
+            load_in_4bit=True,
+            dtype=None,  # auto-detect (bf16 on 4090)
+            attn_implementation="sdpa",
+        )
+
+        model = FastLanguageModel.get_peft_model(
+            model,
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            target_modules=[
+                "q_proj", "k_proj", "v_proj", "o_proj",
+                "gate_proj", "up_proj", "down_proj",
+            ],
+            lora_dropout=0.05,
+            bias="none",
+            use_gradient_checkpointing="unsloth",
+            random_state=42,
+        )
+    else:
+        use_bf16 = torch.cuda.is_bf16_supported()
+        quant_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16 if use_bf16 else torch.float16,
+            bnb_4bit_use_double_quant=True,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_PATH,
+            quantization_config=quant_config,
+            torch_dtype=torch.bfloat16 if use_bf16 else torch.float16,
+            trust_remote_code=True,
+            attn_implementation="sdpa",
+        )
+        model = prepare_model_for_kbit_training(model)
+
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(
+            MODEL_PATH, use_fast=True, trust_remote_code=True,
+        )
+
+        lora_config = LoraConfig(
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            target_modules=[
+                "q_proj", "k_proj", "v_proj", "o_proj",
+                "gate_proj", "up_proj", "down_proj",
+            ],
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
+        model = get_peft_model(model, lora_config)
+        model.gradient_checkpointing_enable()
+
     model.print_trainable_parameters()
 
     # Wrap tokenizer for number token support
@@ -272,7 +319,11 @@ def train(
     tokenizer.save_pretrained(output_dir)
 
     # Inference + Evaluation (per test split)
-    FastLanguageModel.for_inference(model)
+    if use_unsloth:
+        from unsloth import FastLanguageModel
+        FastLanguageModel.for_inference(model)
+    else:
+        model.eval()
     csv_paths = []
     for split_name, test_ds in test_datasets.items():
         print(f"\n{'='*60}")
@@ -320,6 +371,8 @@ def main():
     parser.add_argument("--no_ntl", action="store_true", help="Disable NTL loss")
     parser.add_argument("--use_sal", action="store_true", help="Enable SAL loss")
     parser.add_argument("--no_weighted_ntl", action="store_true")
+    parser.add_argument("--no_unsloth", action="store_true",
+                        help="Disable Unsloth (use standard HF+peft, supports multi-GPU)")
     parser.add_argument("--resume", type=str, default=None)
 
     args = parser.parse_args()
@@ -335,6 +388,7 @@ def main():
         use_sal=args.use_sal,
         use_weighted_ntl=not args.no_weighted_ntl,
         resume_checkpoint=args.resume,
+        use_unsloth=not args.no_unsloth,
     )
 
 
