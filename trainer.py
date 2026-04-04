@@ -16,7 +16,7 @@ import torch
 import torch.nn.functional as F
 from transformers import Trainer
 
-from .number_token_loss import NumberTokenLoss
+from number_token_loss import NumberTokenLoss
 
 
 class AESTrainer(Trainer):
