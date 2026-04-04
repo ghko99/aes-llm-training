@@ -17,8 +17,8 @@ accelerate launch \
     --model_path "$MODEL_PATH" \
     --no_unsloth \
     --max_seq_length 2560 \
-    --batch_size 1 \
-    --grad_accum $((32 / NUM_GPUS)) \
+    --batch_size 4 \
+    --grad_accum $((8 / NUM_GPUS)) \
     --lr 2e-4 \
     --epochs 10 \
     --lora_r 16 \
