@@ -8,7 +8,8 @@ Kanana LLM 기반 자동 에세이 채점(AES) 모델 LoRA 파인튜닝 코드.
 
 ```
 .
-├── train.sh                  # 학습 실행 스크립트
+├── train.sh                  # Single-GPU 학습 (Unsloth)
+├── train_multi_gpu.sh        # Multi-GPU 학습 (HF+peft+accelerate)
 ├── train.py                  # 메인 학습 코드 (모델 로드, 데이터셋, 학습 루프)
 ├── trainer.py                # AESTrainer (CE + NTL/WNTL + SAL 커스텀 로스)
 ├── collator.py               # 데이터 콜레이터 (chat template 포맷팅, 라벨 마스킹)
@@ -28,7 +29,8 @@ Kanana LLM 기반 자동 에세이 채점(AES) 모델 LoRA 파인튜닝 코드.
 
 ## 학습 환경
 
-- Unsloth + 4-bit QLoRA
+- **Single-GPU**: Unsloth + 4-bit QLoRA (기본, ~2x 속도)
+- **Multi-GPU**: HF Transformers + peft + accelerate (`--no_unsloth`)
 - Kanana (LLaMA 아키텍처, 8B)
 - W&B 로깅
 - EarlyStopping (patience=3)
@@ -54,33 +56,35 @@ pip install -r requirements.txt
 
 # 5. 데이터셋 다운로드 (Git LFS)
 git lfs pull
-
-# 6. train.py의 MODEL_PATH를 실제 모델 경로로 수정
-# MODEL_PATH = "/path/to/kanana"  (train.py:41)
 ```
 
 ## 실행 방법
 
 ```bash
-# 1. 상위 디렉토리에서 모듈로 실행
-cd ..
-./aes-llm-training/train.sh
+# Single-GPU (Unsloth)
+MODEL_PATH=/path/to/kanana ./train.sh
 
-# 또는 직접 실행
-python -m aes-llm-training.train \
-    --max_seq_length 2560 \
-    --batch_size 1 \
-    --grad_accum 32 \
-    --lr 2e-4 \
-    --epochs 10 \
-    --lora_r 16 \
-    --lora_alpha 32
+# Multi-GPU (자동 GPU 감지)
+MODEL_PATH=/path/to/kanana ./train_multi_gpu.sh
+```
+
+`MODEL_PATH` 환경변수로 모델 경로를 지정합니다. 또는 직접 실행:
+
+```bash
+# Single-GPU
+python train.py --model_path /path/to/kanana \
+    --max_seq_length 2560 --batch_size 1 --grad_accum 32
+
+# Multi-GPU
+accelerate launch train.py --model_path /path/to/kanana --no_unsloth \
+    --max_seq_length 2560 --batch_size 1 --grad_accum 16
 ```
 
 ## 주요 인자
 
 | 인자 | 기본값 | 설명 |
 |------|--------|------|
+| `--model_path` | (필수) | 베이스 모델 경로 |
 | `--max_seq_length` | 1536 | 최대 시퀀스 길이 |
 | `--batch_size` | 4 | 배치 사이즈 |
 | `--grad_accum` | 8 | Gradient accumulation steps |
@@ -91,6 +95,7 @@ python -m aes-llm-training.train \
 | `--no_ntl` | - | NTL 로스 비활성화 |
 | `--use_sal` | - | SAL 로스 활성화 |
 | `--no_weighted_ntl` | - | 가중 NTL 비활성화 |
+| `--no_unsloth` | - | Unsloth 비활성화 (multi-GPU용) |
 | `--resume` | - | 체크포인트에서 재개 |
 
 ## Loss 구성
@@ -207,6 +212,7 @@ AI Hub의 서술형/논술형/주제별 글쓰기 평가 데이터셋을 chat te
 
 ## 참고
 
-- `MODEL_PATH`를 실제 Kanana 모델 경로로 수정 필요 (`train.py:41`)
+- 모델 경로는 `MODEL_PATH` 환경변수 또는 `--model_path` 인자로 지정
 - 데이터셋은 Git LFS로 관리 — clone 후 `git lfs pull` 필요
 - PyTorch는 서버의 CUDA 버전에 맞게 별도 설치 권장
+- Multi-GPU 사용 시 `pip install accelerate` 필요

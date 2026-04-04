@@ -16,7 +16,6 @@ from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from number_tokenizer import AutoNumberTokenizer
 
-MODEL_PATH = "kanana-model-path"
 
 
 def build_digit_token_id_map(tokenizer) -> dict[int, int]:
@@ -52,8 +51,15 @@ def build_digit_token_id_map(tokenizer) -> dict[int, int]:
     return digit_map
 
 
-def load_inference_model(adapter_dir: str, base_model: str = MODEL_PATH):
-    """Load quantized base model with LoRA adapter."""
+def load_inference_model(adapter_dir: str, base_model: str = None):
+    """Load quantized base model with LoRA adapter.
+
+    Args:
+        base_model: Path to base model. If None, reads from adapter config.
+    """
+    if base_model is None:
+        from peft import PeftConfig
+        base_model = PeftConfig.from_pretrained(adapter_dir).base_model_name_or_path
     use_bf16 = torch.cuda.is_bf16_supported()
 
     quant_config = BitsAndBytesConfig(

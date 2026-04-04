@@ -1,8 +1,10 @@
 #!/bin/bash
 # Single-GPU training with Unsloth
-# Uses the first available GPU automatically
+
+MODEL_PATH=${MODEL_PATH:-"/path/to/model"}
 
 UNSLOTH_RETURN_LOGITS=1 python train.py \
+    --model_path "$MODEL_PATH" \
     --max_seq_length 2560 \
     --batch_size 1 \
     --grad_accum 32 \

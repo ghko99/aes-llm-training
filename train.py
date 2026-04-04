@@ -45,7 +45,6 @@ from trainer import AESTrainer
 
 # ── Config ────────────────────────────────────────────────────────────
 
-MODEL_PATH = "/home/khko/models/kanana"
 DATASET_DIR = Path(__file__).resolve().parent / "aes_datasets"
 
 TEST_SPLITS = {
@@ -124,7 +123,11 @@ def train(
     use_weighted_ntl: bool = True,
     resume_checkpoint: str | None = None,
     use_unsloth: bool = True,
+    model_path: str | None = None,
 ):
+    if model_path is None:
+        raise ValueError("--model_path is required. Specify the path to the base model.")
+
     set_seed(42)
 
     # Output directory
@@ -184,7 +187,7 @@ def train(
         from unsloth import FastLanguageModel
 
         model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=MODEL_PATH,
+            model_name=model_path,
             max_seq_length=max_seq_length,
             load_in_4bit=True,
             dtype=None,  # auto-detect (bf16 on 4090)
@@ -213,7 +216,7 @@ def train(
             bnb_4bit_use_double_quant=True,
         )
         model = AutoModelForCausalLM.from_pretrained(
-            MODEL_PATH,
+            model_path,
             quantization_config=quant_config,
             torch_dtype=torch.bfloat16 if use_bf16 else torch.float16,
             trust_remote_code=True,
@@ -223,7 +226,7 @@ def train(
 
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(
-            MODEL_PATH, use_fast=True, trust_remote_code=True,
+            model_path, use_fast=True, trust_remote_code=True,
         )
 
         lora_config = LoraConfig(
@@ -244,7 +247,7 @@ def train(
 
     # Wrap tokenizer for number token support
     num_tokenizer = AutoNumberTokenizer.from_pretrained(
-        MODEL_PATH, use_fast=True, trust_remote_code=True
+        model_path, use_fast=True, trust_remote_code=True
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -360,7 +363,9 @@ def train(
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Kanana AES Training (Unsloth)")
+    parser = argparse.ArgumentParser(description="Kanana AES Training")
+    parser.add_argument("--model_path", type=str, required=True,
+                        help="Path to base model (e.g. /path/to/kanana)")
     parser.add_argument("--max_seq_length", type=int, default=1536)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--grad_accum", type=int, default=8)
@@ -377,6 +382,7 @@ def main():
 
     args = parser.parse_args()
     train(
+        model_path=args.model_path,
         max_seq_length=args.max_seq_length,
         batch_size=args.batch_size,
         grad_accum=args.grad_accum,
