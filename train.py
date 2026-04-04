@@ -278,7 +278,7 @@ def train(
     import wandb
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     if local_rank == 0:
-        wandb.init(project="aes-training", name=f"{tag}_{timestamp}")
+        wandb.init(project="kanana-aes-training", name=f"{tag}_{timestamp}")
     else:
         wandb.init(mode="disabled")
 
