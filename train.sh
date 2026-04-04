@@ -1,10 +1,4 @@
-#!/bin/bash
-cd "$(dirname "$0")/.."
-
-eval "$(conda shell.bash hook)"
-conda activate llm
-
-UNSLOTH_RETURN_LOGITS=1 CUDA_VISIBLE_DEVICES=0 python -m aes_training.train \
+UNSLOTH_RETURN_LOGITS=1 CUDA_VISIBLE_DEVICES=0 python -m train.py \
     --max_seq_length 2560 \
     --batch_size 1 \
     --grad_accum 32 \
