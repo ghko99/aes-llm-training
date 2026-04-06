@@ -335,9 +335,11 @@ def train(
         best_ckpt = trainer.state.best_model_checkpoint
         if is_main:
             print(f"Best checkpoint: {best_ckpt}")
-            from peft import PeftModel
-            # Reload adapter from best checkpoint on rank 0's device
-            model.load_adapter(best_ckpt, "default", device_map={"": local_rank})
+            import safetensors.torch
+            adapter_path = os.path.join(best_ckpt, "adapter_model.safetensors")
+            if os.path.exists(adapter_path):
+                state_dict = safetensors.torch.load_file(adapter_path, device=f"cuda:{local_rank}")
+                model.load_state_dict(state_dict, strict=False)
 
     if is_main:
         print("Training complete. Saving model...")

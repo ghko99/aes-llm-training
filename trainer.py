@@ -22,6 +22,23 @@ from number_token_loss import NumberTokenLoss
 class AESTrainer(Trainer):
     """CE + optional NTL + optional SAL trainer for essay scoring."""
 
+    def _load_from_checkpoint(self, resume_from_checkpoint, trial=None):
+        """Override to fix peft adapter loading device in DDP.
+
+        The default Trainer calls model.load_adapter() which doesn't respect
+        the per-rank device mapping, causing CUDA device conflicts on rank > 0.
+        """
+        from peft import PeftModel
+        if isinstance(self.model, PeftModel):
+            import safetensors.torch
+            local_rank = int(os.environ.get("LOCAL_RANK", 0))
+            adapter_path = os.path.join(resume_from_checkpoint, "adapter_model.safetensors")
+            if os.path.exists(adapter_path):
+                state_dict = safetensors.torch.load_file(adapter_path, device=f"cuda:{local_rank}")
+                self.model.load_state_dict(state_dict, strict=False)
+                return
+        super()._load_from_checkpoint(resume_from_checkpoint, trial)
+
     def __init__(
         self,
         *args,
