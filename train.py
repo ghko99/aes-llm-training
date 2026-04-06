@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 os.environ["UNSLOTH_RETURN_LOGITS"] = "1"
 
 """Main training script for Kanana AES fine-tuning.
