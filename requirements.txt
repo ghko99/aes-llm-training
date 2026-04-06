@@ -9,6 +9,8 @@ accelerate==1.12.0
 trl==0.24.0
 xformers==0.0.34
 wandb==0.24.2
+tensorboard==2.19.0
+python-dotenv==1.2.2
 numpy==2.2.6
 pandas==2.3.3
 scipy==1.15.3
