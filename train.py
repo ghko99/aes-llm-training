@@ -276,13 +276,15 @@ def train(
     train_ds = train_ds.map(_estimate_length, num_proc=4)
     valid_ds = valid_ds.map(_estimate_length, num_proc=4)
 
-    # W&B init (rank 0 only; other ranks disabled)
-    import wandb
+    # Monitoring setup (controlled by REPORT_TO env var: wandb, tensorboard, none)
+    report_to = os.environ.get("REPORT_TO", "tensorboard").lower()
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    if local_rank == 0:
-        wandb.init(project="kanana-aes-training", name=f"{tag}_{timestamp}")
-    else:
-        wandb.init(mode="disabled")
+    if report_to == "wandb":
+        import wandb
+        if local_rank == 0:
+            wandb.init(project="kanana-aes-training", name=f"{tag}_{timestamp}")
+        else:
+            wandb.init(mode="disabled")
 
     # Training arguments
     training_args = TrainingArguments(
@@ -306,8 +308,9 @@ def train(
         remove_unused_columns=False,
         group_by_length=True,
         length_column_name="length",
-        report_to="wandb",
+        report_to=report_to,
         run_name=f"{tag}_{timestamp}",
+        logging_dir=os.path.join(output_dir, "logs") if report_to == "tensorboard" else None,
         ddp_find_unused_parameters=False if not use_unsloth else None,
     )
 
