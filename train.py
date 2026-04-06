@@ -297,8 +297,9 @@ def train(
         learning_rate=lr,
         bf16=True,
         save_total_limit=2,
-        load_best_model_at_end=True,
+        load_best_model_at_end=use_unsloth,  # disabled for DDP (device conflict on load)
         greater_is_better=False,
+        metric_for_best_model="eval_loss",
         seed=42,
         remove_unused_columns=False,
         group_by_length=True,
@@ -329,11 +330,24 @@ def train(
     else:
         trainer.train()
 
-    print("Training complete. Saving model...")
-    model.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
+    # For multi-GPU (DDP), load best checkpoint manually on rank 0
+    if not use_unsloth and trainer.state.best_model_checkpoint:
+        best_ckpt = trainer.state.best_model_checkpoint
+        if is_main:
+            print(f"Best checkpoint: {best_ckpt}")
+            from peft import PeftModel
+            # Reload adapter from best checkpoint on rank 0's device
+            model.load_adapter(best_ckpt, "default", device_map={"": local_rank})
 
-    # Inference + Evaluation (per test split)
+    if is_main:
+        print("Training complete. Saving model...")
+        model.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
+
+    # Inference + Evaluation (rank 0 only for multi-GPU)
+    if not is_main:
+        return output_dir
+
     if use_unsloth:
         from unsloth import FastLanguageModel
         FastLanguageModel.for_inference(model)
